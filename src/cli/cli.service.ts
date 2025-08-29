@@ -176,79 +176,99 @@ export class CliService {
                     }
                 ]);
 
-                if (type === 'all') {
-                    await this.businessService.sendProposalsToAll({
-                        from: emailConfig.from,
-                        subject: emailConfig.subject,
-                        templateName: emailConfig.templateName,
-                        templateData: {
-                            phoneNumber: emailConfig.phoneNumber,
-                            replyEmail: emailConfig.replyEmail,
-                            consultationLink: emailConfig.consultationLink
-                        }
-                    });
-                } else {
-                    const filterOptions = await inquirer.prompt([
-                        {
-                            type: 'input',
-                            name: 'businessType',
-                            message: 'Filter by business type (leave empty for all):'
-                        },
-                        {
-                            type: 'input',
-                            name: 'tags',
-                            message: 'Filter by tags (comma-separated, leave empty for all):'
-                        },
-                        {
-                            type: 'confirm',
-                            name: 'filterByWebsite',
-                            message: 'Filter by website presence?',
-                            default: false
-                        },
-                        {
-                            type: 'confirm',
-                            name: 'hasWebsite',
-                            message: 'Should have website?',
-                            when: (answers) => answers.filterByWebsite
-                        }
-                    ]);
-
-                    interface FilterOptions {
-                        businessType?: string;
-                        tags?: string;
-                        filterByWebsite?: boolean;
-                        hasWebsite?: boolean;
-                    }
-
-                    interface EmailConfig {
-                        from: string;
-                        subject: string;
-                        templateName: string;
-                        phoneNumber: string;
-                        replyEmail: string;
-                        consultationLink: string;
-                    }
-
-                    await this.businessService.sendProposalsFiltered({
-                        filters: {
-                            type: (filterOptions as FilterOptions).businessType || undefined,
-                            tags: (filterOptions as FilterOptions).tags ? (filterOptions as FilterOptions).tags!.split(',').map((t: string) => t.trim()) : undefined,
-                            hasWebsite: (filterOptions as FilterOptions).filterByWebsite ? (filterOptions as FilterOptions).hasWebsite : undefined
-                        },
-                        emailOptions: {
-                            from: (emailConfig as EmailConfig).from,
-                            subject: (emailConfig as EmailConfig).subject,
-                            templateName: (emailConfig as EmailConfig).templateName,
+                try {
+                    let results;
+                    
+                    if (type === 'all') {
+                        results = await this.businessService.sendProposalsToAll({
+                            from: emailConfig.from,
+                            subject: emailConfig.subject,
+                            templateName: emailConfig.templateName,
                             templateData: {
-                                phoneNumber: (emailConfig as EmailConfig).phoneNumber,
-                                replyEmail: (emailConfig as EmailConfig).replyEmail,
-                                consultationLink: (emailConfig as EmailConfig).consultationLink
+                                phoneNumber: emailConfig.phoneNumber,
+                                replyEmail: emailConfig.replyEmail,
+                                consultationLink: emailConfig.consultationLink
                             }
-                        }
-                    });
-                }
+                        });
+                    } else {
+                        const filterOptions = await inquirer.prompt([
+                            {
+                                type: 'input',
+                                name: 'businessType',
+                                message: 'Filter by business type (leave empty for all):'
+                            },
+                            {
+                                type: 'input',
+                                name: 'tags',
+                                message: 'Filter by tags (comma-separated, leave empty for all):'
+                            },
+                            {
+                                type: 'confirm',
+                                name: 'filterByWebsite',
+                                message: 'Filter by website presence?',
+                                default: false
+                            },
+                            {
+                                type: 'confirm',
+                                name: 'hasWebsite',
+                                message: 'Should have website?',
+                                when: (answers) => answers.filterByWebsite
+                            }
+                        ]);
 
-                console.log('Campaign sent successfully!');
+                        interface FilterOptions {
+                            businessType?: string;
+                            tags?: string;
+                            filterByWebsite?: boolean;
+                            hasWebsite?: boolean;
+                        }
+
+                        interface EmailConfig {
+                            from: string;
+                            subject: string;
+                            templateName: string;
+                            phoneNumber: string;
+                            replyEmail: string;
+                            consultationLink: string;
+                        }
+
+                        results = await this.businessService.sendProposalsFiltered({
+                            filters: {
+                                type: (filterOptions as FilterOptions).businessType || undefined,
+                                tags: (filterOptions as FilterOptions).tags ? (filterOptions as FilterOptions).tags!.split(',').map((t: string) => t.trim()) : undefined,
+                                hasWebsite: (filterOptions as FilterOptions).filterByWebsite ? (filterOptions as FilterOptions).hasWebsite : undefined
+                            },
+                            emailOptions: {
+                                from: (emailConfig as EmailConfig).from,
+                                subject: (emailConfig as EmailConfig).subject,
+                                templateName: (emailConfig as EmailConfig).templateName,
+                                templateData: {
+                                    phoneNumber: (emailConfig as EmailConfig).phoneNumber,
+                                    replyEmail: (emailConfig as EmailConfig).replyEmail,
+                                    consultationLink: (emailConfig as EmailConfig).consultationLink
+                                }
+                            }
+                        });
+                    }
+
+                    // Check if there were any failed emails
+                    const failedEmails = results.filter(r => !r.result.success);
+                    const successfulEmails = results.filter(r => r.result.success);
+
+                    if (failedEmails.length === 0) {
+                        console.log(`Campaign completed successfully! ${successfulEmails.length} emails sent.`);
+                    } else {
+                        console.log(`Campaign completed with some errors:`);
+                        console.log(`- ${successfulEmails.length} emails sent successfully`);
+                        console.log(`- ${failedEmails.length} emails failed:`);
+                        failedEmails.forEach(({ business, result }) => {
+                            console.log(`  - ${business.name} (${business.email}): ${result.error}`);
+                        });
+                    }
+                } catch (error) {
+                    console.error('Campaign failed:', error instanceof Error ? error.message : 'Unknown error');
+                    process.exit(1);
+                }
             });
 
         // View campaign results

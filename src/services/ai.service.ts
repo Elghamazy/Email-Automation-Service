@@ -1,64 +1,93 @@
 import type { BusinessDetails, ServiceProposal } from '../types/index.js';
-import { aiModel } from '../config/index.js';
+import { GoogleGenerativeAI } from '@google/generative-ai';
+import { envConfig } from '../config/env.js';
 
 export class AIService {
-    async generateBusinessProposal(businessDetails: BusinessDetails): Promise<ServiceProposal> {
-        const prompt = `
-        Analyze this business and provide specific recommendations:
-        Business Name: ${businessDetails.name}
-        Type: ${businessDetails.type}
-        Current Web Presence: ${businessDetails.currentWebPresence ? JSON.stringify(businessDetails.currentWebPresence) : 'Unknown'}
-        Description: ${businessDetails.description || 'Not provided'}
-
-        Provide specific recommendations for:
-        1. Website needs
-        2. Digital marketing strategy
-        3. Branding improvements
-        Be specific and actionable.
-        
-        Format your response in JSON with these exact keys:
-        {
-            "websiteServices": {
-                "needed": boolean,
-                "recommendations": string[],
-                "estimatedPrice": string
-            },
-            "marketingServices": {
-                "needed": boolean,
-                "recommendations": string[],
-                "estimatedPrice": string
-            },
-            "brandingServices": {
-                "needed": boolean,
-                "recommendations": string[],
-                "estimatedPrice": string
-            }
-        }
-        `;
-
-        const result = await aiModel.generateContent(prompt);
-        const response = await result.response;
-        const analysis = response.text();
+    private model;
+    
+    constructor() {
+        const genAI = new GoogleGenerativeAI(envConfig.GEMINI_API_KEY);
+        this.model = genAI.getGenerativeModel({ model: 'gemini-pro' });
         
         try {
-            return JSON.parse(analysis);
+            const genAI = new GoogleGenerativeAI(envConfig.GEMINI_API_KEY);
+            this.model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' });
+            
+            // Test the API key with a simple request
+            this.model.generateContent({
+                contents: [{ role: 'user', parts: [{ text: 'Test connection' }] }]
+            }).catch((error: unknown) => {
+                throw new Error(`Failed to initialize Gemini API: ${error instanceof Error ? error.message : 'Unknown error'}`);
+            });
         } catch (error) {
+            console.error('Failed to initialize AI service:', error);
+            throw new Error(`AI service initialization failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+    }
+
+    async generateBusinessProposal(businessDetails: BusinessDetails): Promise<ServiceProposal> {
+        const prompt = `
+        You are a digital services consultant. Analyze this business and provide specific recommendations.
+        
+        Business Details:
+        - Name: ${businessDetails.name}
+        - Type: ${businessDetails.type}
+        - Current Web Presence: ${businessDetails.currentWebPresence ? JSON.stringify(businessDetails.currentWebPresence) : 'Unknown'}
+        - Description: ${businessDetails.description || 'Not provided'}
+        
+        Format your response as a JSON object with exactly this structure:
+        {
+            "websiteServices": {
+                "needed": true or false,
+                "recommendations": ["2-3 specific, actionable recommendations"],
+                "estimatedPrice": "realistic price range"
+            },
+            "marketingServices": {
+                "needed": true or false,
+                "recommendations": ["2-3 specific, actionable recommendations"],
+                "estimatedPrice": "realistic price range"
+            },
+            "brandingServices": {
+                "needed": true or false,
+                "recommendations": ["2-3 specific, actionable recommendations"],
+                "estimatedPrice": "realistic price range"
+            }
+        }
+        
+        Include only JSON in your response, no other text.
+        `;
+
+        try {
+            const generatedContent = await this.model.generateContent({
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+            });
+            
+            const response = await generatedContent.response;
+            const text = response.text();
+            
+            try {
+                // Try to clean the response by removing any potential markdown code block indicators
+                const cleanedText = text.replace(/```json\n?|\n?```/g, '').trim();
+                return JSON.parse(cleanedText);
+            } catch (parseError) {
+                console.error('Original AI response:', text);
+                console.error('JSON parse error:', parseError);
+                throw new Error('Failed to parse AI response as JSON');
+            }
+        } catch (error) {
+            console.error('AI generation error:', error);
+            
+            // Return a more informative error message
+            const defaultResponse = {
+                needed: true,
+                recommendations: ['An error occurred while generating recommendations. Please try again.'],
+                estimatedPrice: 'Contact for quote'
+            };
+            
             return {
-                websiteServices: {
-                    needed: true,
-                    recommendations: ['Could not parse AI response'],
-                    estimatedPrice: 'Contact for quote'
-                },
-                marketingServices: {
-                    needed: true,
-                    recommendations: ['Could not parse AI response'],
-                    estimatedPrice: 'Contact for quote'
-                },
-                brandingServices: {
-                    needed: true,
-                    recommendations: ['Could not parse AI response'],
-                    estimatedPrice: 'Contact for quote'
-                }
+                websiteServices: defaultResponse,
+                marketingServices: defaultResponse,
+                brandingServices: defaultResponse
             };
         }
     }
@@ -74,7 +103,9 @@ export class AIService {
         Keep it concise and impactful.
         `;
 
-        const result = await aiModel.generateContent(prompt);
+        const result = await this.model.generateContent({
+            contents: [{ role: 'user', parts: [{ text: prompt }] }],
+        });
         const response = await result.response;
         return response.text() || 'Thank you for considering our web services.';
     }

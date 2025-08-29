@@ -49,10 +49,11 @@ export class BusinessService {
         subject: string;
         templateName: string;
         templateData?: Record<string, any>;
-    }): Promise<void> {
+    }): Promise<Array<{ business: BusinessDetails; result: EmailResponse }>> {
         const businesses = this.loadBusinesses();
         const results = await this.sendProposals(businesses, emailOptions);
         this.saveResults(results);
+        return results;
     }
 
     async sendProposalsFiltered(options: {
@@ -67,7 +68,7 @@ export class BusinessService {
             templateName: string;
             templateData?: Record<string, any>;
         };
-    }): Promise<void> {
+    }): Promise<Array<{ business: BusinessDetails; result: EmailResponse }>> {
         let businesses = this.loadBusinesses();
 
         // Apply filters
@@ -87,6 +88,7 @@ export class BusinessService {
 
         const results = await this.sendProposals(businesses, options.emailOptions);
         this.saveResults(results);
+        return results;
     }
 
     private async sendProposals(
