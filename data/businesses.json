@@ -1,0 +1,20 @@
+{
+  "businesses": [
+    {
+      "name": "Example Restaurant",
+      "type": "Restaurant",
+      "email": "contact@examplerestaurant.com",
+      "address": "123 Main St, City, Country",
+      "phone": "+1234567890",
+      "website": "www.examplerestaurant.com",
+      "description": "Family-owned Italian restaurant established in 2010",
+      "currentWebPresence": {
+        "hasWebsite": true,
+        "hasSocialMedia": true,
+        "websiteQuality": "basic",
+        "onlineReviews": 4.2
+      },
+      "tags": ["italian", "restaurant", "family-owned"]
+    }
+  ]
+}
